@@ -409,4 +409,106 @@
       RETURN
       END SUBROUTINE WTXT
 !####################################################################
+      
+      SUBROUTINE WRITEPERF
+      USE COMMOD
+      USE ALLFUN
+      IMPLICIT NONE
+
+      INTEGER(KIND=IKIND) s, a, iEq, terr_idx
+      REAL(KIND=RKIND) flag_temp(tnNo) 
+
+      !REAL(KIND=RKIND), ALLOCATABLE :: tmpV(:,:), perfTerr_flag(:)
+      REAL(KIND=RKIND), ALLOCATABLE :: tmpV(:,:)
+      REAL(KIND=RKIND), ALLOCATABLE :: perfVol(:), perfFlo(:)
+      
+      ALLOCATE(tmpV(1,tnNo))
+      ALLOCATE(perfVol(numTerr),perfFlo(numTerr))
+      
+      IF (cTS == saveIncr) THEN
+         ALLOCATE(perfTerr_flag(numTerr,tnNo))
+      ENDIF
+
+      DO iEq=1, nEq
+         IF (eq(iEq)%phys .EQ. phys_heatS) THEN
+            s = eq(iEq)%s
+            DO terr_idx = 1, numTerr
+            ! Create one-hot encoding for current perfusion territory
+            ! Note teritory indexing starts from 0 (Python)
+               IF (cTS == saveIncr) THEN
+                  WHERE (perfTerr == terr_idx-1)
+                     flag_temp = 1._RKIND
+                  ELSEWHERE
+                     flag_temp = 0._RKIND
+                  END WHERE
+                  perfTerr_flag(terr_idx,:) = flag_temp
+                  ! Integrate and write volume of current perfusion territory
+                  tmpV(1,:) = perfTerr_flag(terr_idx,:)
+                  perfVol(terr_idx) = Integ(0, tmpV, 1, 1)
+               ENDIF !cTs
+               ! Array storing perfusion flow at nodes in current territory
+               DO a=1, tnNo   
+                  tmpV(1,a) = betaSource*
+     2                        (perfSrc(a)-Yn(s,a))*
+     3                        perfTerr_flag(terr_idx,a)
+               ENDDO !tnNo
+               ! Integrate and write perfusion flow rate of current territory
+               perfFlo(terr_idx) = Integ(0, tmpV, 1, 1)
+            ENDDO !numTerr
+         ENDIF !eq(iEq)%phys
+      ENDDO !nEq
+
+      DEALLOCATE(tmpV)
+
+!     ALLOCATE(perfTerr_flag(tnNo),tmpV(1,tnNo))
+!     ALLOCATE(perfVol(numTerr),perfFlo(numTerr))
+!     DO iEq=1, nEq
+!        IF (eq(iEq)%phys .EQ. phys_heatS) THEN
+!           s = eq(iEq)%s
+!           DO terr_idx = 1, numTerr
+!           ! Create one-hot encoding for current perfusion territory
+!           ! Note teritory indexing starts from 0 (Python)
+!              WHERE (perfTerr == terr_idx-1)
+!                 perfTerr_flag = 1._RKIND
+!              ELSEWHERE
+!                 perfTerr_flag = 0._RKIND
+!              END WHERE
+!              IF (cTS == saveIncr) THEN
+!                 ! Integrate and write volume of current perfusion territory
+!                 tmpV(1,:) = perfTerr_flag
+!                 perfVol(terr_idx) = Integ(0, tmpV, 1, 1)
+!              ENDIF !cTs
+!              ! Array storing perfusion flow at nodes in current territory
+!              DO a=1, tnNo   
+!                 tmpV(1,a) = betaSource*
+!    2                        (perfSrc(a)-Yn(s,a))*perfTerr_flag(a)
+!              ENDDO !tnNo
+!              ! Integrate and write perfusion flow rate of current territory
+!              perfFlo(terr_idx) = Integ(0, tmpV, 1, 1)
+!           ENDDO !numTerr
+!        ENDIF !eq(iEq)%phys
+!     ENDDO !nEq
+      
+!     DEALLOCATE(perfTerr_flag,tmpV)
+
+      IF (cm%mas()) THEN
+         IF (cTS == saveIncr) THEN
+            OPEN(1,FILE="perfVolume.dat")
+            WRITE(1,*) numTerr
+            WRITE(1,*) perfVol(:)
+            CLOSE(1)
+            OPEN(2, FILE="perfFlow.dat")
+            WRITE(2,*) numTerr
+         END IF !cTs
+        !OPEN(2, FILE="perfFlow.dat",POSITION='APPEND')
+        !IF (cTS == saveIncr) THEN
+        !   WRITE(2,*) numTerr
+        !END IF !cTs
+         WRITE(2,*) perfFlo(:)
+        !CLOSE(2)
+      ENDIF !cm%mas()
+
+      RETURN
+
+      END SUBROUTINE WRITEPERF
 

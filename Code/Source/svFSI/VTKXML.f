@@ -555,9 +555,16 @@
 
                CASE (outGrp_vort, outGrp_eFlx, outGrp_hFlx,
      2            outGrp_stInv, outGrp_vortex, outGrp_Visc)
-                  CALL POST(msh(iM), tmpV, lY, lD, oGrp, iEq)
+                  CALL POST(msh(iM), tmpV, lY, lD, oGrp, iEq) 
                   DO a=1, msh(iM)%nNo
                      d(iM)%x(is:ie,a) = tmpV(1:l,a)
+                  END DO
+
+               CASE (outGrp_MBF) !kmenon_perfusion
+                  DO a=1, msh(iM)%nNo
+                     Ac = msh(iM)%gN(a)
+                     d(iM)%x(is:ie,a) = betaSource*
+     2                                  (perfSrc(Ac)-lY(s:e,Ac))
                   END DO
 
                CASE (outGrp_absV)

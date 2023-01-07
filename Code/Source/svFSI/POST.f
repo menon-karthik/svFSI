@@ -174,6 +174,9 @@
                xl(:,a)     = xl(:,a)     + lD(nsd+2:2*nsd+1,Ac)
                yl(1:nsd,a) = yl(1:nsd,a) - lY(nsd+2:2*nsd+1,Ac)
             END IF
+           !IF (perfusionFlag) THEN
+           !   perfSourceLocal(a) = perfSrc(Ac)
+           !ENDIF
          END DO
 
          DO g=1, lM%nG
