@@ -272,6 +272,42 @@
             IF (.NOT.mvMsh) err = "mesh equation can only"//
      2         " be specified after FSI equation"
          END IF
+
+         !kmenon_perfusion
+         WRITE(*,*) "KMENON0"
+         IF (perfusionFlag) THEN
+             !pSourceAvg = 0._RKIND
+             ALLOCATE(perfSrc(gtnNo),perfTerr(gtnNo))
+             OPEN (13, FILE='perfusionSource')
+!            READ(13,*) i, pCapillary, betaSourceScale, betaSinkScale
+!            READ(13,*) i, pCapillary, betaSourceScale, //
+!                       betaSinkScale, permeability
+             READ(13,*) i, betaSource, betaSink, permeability, numTerr
+             IF (i .NE. gtnNo) THEN
+                err ="Size of perfusionSource != size of mesh"
+             END IF
+            !DO i=1, gtnNo
+            !   READ(13,*) perfSrc(i)
+            !   pSourceAvg = pSourceAvg + perfSrc(i)
+            !END DO
+             DO i=1, gtnNo
+                READ(13,*) perfSrc(i), perfTerr(i)
+                !pSourceAvg = pSourceAvg + perfSrc(i)
+             END DO
+             CLOSE(13)
+!            pSourceAvg = pSourceAvg/FLOAT(gtnNo)
+!            betaSource = betaSourceScale/(pSourceAvg - pCapillary)
+!            betaSink = betaSinkScale/(pCapillary)
+             betaSum = betaSource + betaSink
+             std = " Perfusion parameters:"
+!            std = " pSourceAvg, pCapillary = "
+!    2             //pSourceAvg//","//pCapillary
+!            std = " betaSourceScale, betaSinkScale =  "
+!    2             //betaSourceScale//", "//betaSinkScale
+             std = " betaSource, betaSink, permeability =  "
+     2             //betaSource//", "//betaSink//", "//permeability
+         ENDIF
+         !kmenon_perfusion
       END DO
 
       IF (cem%cpld) THEN
@@ -458,7 +494,12 @@
          CALL READLS(lSolver_GMRES, lEq, list)
 
 !     HEAT SOLID Laplac equation solver------------------------------
-      CASE ('heatS', 'laplace', 'poisson')
+      !kmenon_perfusion
+      CASE ('heatS', 'laplace', 'poisson', 'perfusion')
+
+         IF (eqName == 'perfusion') THEN
+             perfusionFlag = .TRUE.
+         ENDIF
          lEq%phys = phys_heatS
 
          propL(1,1) = conductivity
@@ -466,9 +507,16 @@
          propL(3,1) = solid_density
          CALL READDOMAIN(lEq, propL, list)
 
-         nDOP = (/2,1,1,0/)
-         outPuts(1) = out_temperature
-         outPuts(2) = out_heatFlux
+         IF (perfusionFlag) THEN
+            nDOP = (/3,2,0,0/)
+            outPuts(1) = out_temperature
+            outPuts(2) = out_MBF
+            outPuts(3) = out_heatFlux
+         ELSE
+            nDOP = (/2,1,1,0/)
+            outPuts(1) = out_temperature
+            outPuts(2) = out_heatFlux
+         ENDIF
 
          CALL READLS(lSolver_CG, lEq, list)
 
@@ -1422,6 +1470,11 @@
             lEq%output(iOut)%o    = 0
             lEq%output(iOut)%l    = 1
             lEq%output(iOut)%name = "Viscosity"
+         CASE (out_MBF) !kmenon_perfusion
+            lEq%output(iOut)%grp  = outGrp_MBF
+            lEq%output(iOut)%o    = 0
+            lEq%output(iOut)%l    = 1
+            lEq%output(iOut)%name = "MBF"
          CASE DEFAULT
             err = "Internal output undefined"
          END SELECT
