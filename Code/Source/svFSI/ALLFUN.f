@@ -63,7 +63,9 @@
       END INTERFACE GLOBAL
 
       INTERFACE LOCAL
-         MODULE PROCEDURE LOCALIS, LOCALRV
+         !MODULE PROCEDURE LOCALIS, LOCALRV
+         !kmenon_perfusion
+         MODULE PROCEDURE LOCALIS, LOCALRV, LOCALRS
       END INTERFACE LOCAL
 
       INTERFACE DESTROY
@@ -941,6 +943,44 @@
 
       RETURN
       END FUNCTION LOCALRV
+!--------------------------------------------------------------------
+      !kmenon_perfusion
+      FUNCTION LOCALRS(U)
+      USE COMMOD
+      USE UTILMOD
+      IMPLICIT NONE
+      REAL(KIND=RKIND), INTENT(IN) :: U(:)
+      REAL(KIND=RKIND), ALLOCATABLE :: LOCALRS(:)
+
+      INTEGER(KIND=IKIND) Ac, a
+      REAL(KIND=RKIND), ALLOCATABLE :: tmpU(:)
+      !INTEGER(KIND=IKIND) m, ierr, mster
+
+      IF (.NOT.ALLOCATED(ltg)) err = "ltg is not set yet"
+      IF (cm%mas()) THEN ! KMENON: Need to check this
+         IF (SIZE(U,1) .NE. gtnNo) err = "LOCAL is only"//
+     2      " specified for vector with size gnNo"
+      END IF
+
+      IF (cm%seq()) THEN
+         ALLOCATE(LOCALRS(gtnNo))
+         LOCALRS = U
+         RETURN
+      END IF
+
+      ALLOCATE(LOCALRS(tnNo), tmpU(gtnNo))
+      IF (cm%mas()) tmpU = U
+      CALL cm%bcast(tmpU)
+!     m = SIZE(tmpU)
+!     mster = 0
+!     CALL MPI_BCAST(tmpU, m, MPI_DOUBLE_PRECISION, 0, cm%com(), ierr)
+      DO a=1, tnNo
+         Ac = ltg(a)
+         LOCALRS(a) = tmpU(Ac)
+      END DO
+
+      RETURN
+      END FUNCTION LOCALRS
 !####################################################################
 !     This function returns the domain that an element of a mesh
 !     belongs to
