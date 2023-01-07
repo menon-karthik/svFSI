@@ -445,6 +445,13 @@
          END DO
       END IF
 
+      !kmenon_perfusion
+      IF (perfusionFlag) THEN
+         DO a=1, tnNo
+            Yo(1,a) = 20000._RKIND 
+         END DO
+      ENDIF
+
       RETURN
       END SUBROUTINE ZEROINIT
 !--------------------------------------------------------------------
@@ -673,6 +680,9 @@
       IF (ALLOCATED(cplBC%xp)) DEALLOCATE(cplBC%xp)
 
       IF (ALLOCATED(varWallProps)) DEALLOCATE(varWallProps)
+      
+      !kmenon_perfusion
+      IF (ALLOCATED(perfSrc))   DEALLOCATE(perfSrc)
 
 !     Electrophysiology and Electromechanics
       IF (cepEq) THEN
