@@ -51,6 +51,10 @@
      2   tmpD(:,:,:)
       TYPE(mshType), ALLOCATABLE :: tMs(:)
 
+      !kmenon_perfusion
+      REAL(KIND=RKIND), ALLOCATABLE :: tmpPerf(:)
+      INTEGER(KIND=IKIND), ALLOCATABLE :: tmpPerfTerr(:)
+
 !     Preparing IO incase of error or warning. I'm keeping dbg channel
 !     closed is slave processors. Warning is closed only if it is
 !     closed in master
@@ -341,6 +345,37 @@
          ALLOCATE(varWallProps(2,tnNo))
          varWallProps = LOCAL(tmpX)
          DEALLOCATE(tmpX)
+      END IF
+
+      !kmenon_perfusion
+      flag = (ALLOCATED(perfSrc))
+      CALL cm%bcast(flag)
+      IF (flag) THEN
+         IF (cm%mas()) THEN
+            ALLOCATE(tmpPerf(gtnNo))
+            tmpPerf = perfSrc
+            DEALLOCATE(perfSrc)
+         ELSE
+            ALLOCATE(tmpPerf(0))
+         END IF
+         ALLOCATE(perfSrc(tnNo))
+         perfSrc = LOCALRS(tmpPerf)
+         DEALLOCATE(tmpPerf)
+      END IF
+
+      flag = (ALLOCATED(perfTerr))
+      CALL cm%bcast(flag)
+      IF (flag) THEN
+         IF (cm%mas()) THEN
+            ALLOCATE(tmpPerfTerr(gtnNo))
+            tmpPerfTerr = perfTerr
+            DEALLOCATE(perfTerr)
+         ELSE
+            ALLOCATE(tmpPerfTerr(0))
+         END IF
+         ALLOCATE(perfTerr(tnNo))
+         perfTerr = LOCAL(tmpPerfTerr)
+         DEALLOCATE(tmpPerfTerr)
       END IF
 
 !     Communicating cplBC data
