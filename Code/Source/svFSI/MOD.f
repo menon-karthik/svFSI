@@ -852,6 +852,8 @@
       LOGICAL ibFlag
 !     Postprocess step - convert bin to vtk
       LOGICAL bin2VTK
+      ! kmenon_perfusion
+      LOGICAL perfusionFlag
 
 !     INTEGER(KIND=IKIND) VARIABLES
 !     Current domain
@@ -952,6 +954,19 @@
       REAL(KIND=RKIND), ALLOCATABLE :: Yn(:,:)
 !     Body force
       REAL(KIND=RKIND), ALLOCATABLE :: Bf(:,:)
+      !kmenon_perfusion
+      REAL(KIND=RKIND), ALLOCATABLE :: perfSrc(:)
+      INTEGER(KIND=IKIND), ALLOCATABLE :: perfTerr(:)
+      INTEGER(KIND=IKIND), ALLOCATABLE :: perfTerr_flag(:,:)
+      !REAL(KIND=RKIND) :: pSourceAvg
+      !REAL(KIND=RKIND) :: pCapillary
+      !REAL(KIND=RKIND) :: betaSourceScale
+      !REAL(KIND=RKIND) :: betaSinkScale
+      REAL(KIND=RKIND) :: betaSource
+      REAL(KIND=RKIND) :: betaSink
+      REAL(KIND=RKIND) :: betaSum
+      REAL(KIND=RKIND) :: permeability
+      INTEGER(KIND=IKIND) :: numTerr
 
 !     Additional arrays for velocity-based formulation of nonlinear
 !     solid mechanics
