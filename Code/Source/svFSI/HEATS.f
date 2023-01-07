@@ -49,12 +49,20 @@
       INTEGER(KIND=IKIND), ALLOCATABLE :: ptr(:)
       REAL(KIND=RKIND), ALLOCATABLE :: xl(:,:), al(:,:), yl(:,:),
      2   N(:), Nx(:,:), lR(:,:), lK(:,:,:)
+      !kmenon_perfusion
+      REAL(KIND=RKIND), ALLOCATABLE :: perfSourceLocal(:)
 
       eNoN = lM%eNoN
 
 !     HEATS: dof = 1
       ALLOCATE(ptr(eNoN), xl(nsd,eNoN), al(tDof,eNoN), yl(tDof,eNoN),
      2   N(eNoN), Nx(nsd,eNoN), lR(dof,eNoN), lK(dof*dof,eNoN,eNoN))
+
+      !kmenon_perfusion
+!     IF (perfusionFlag) THEN
+!        ALLOCATE(perfSourceLocal(eNoN))
+!     ENDIF
+      ALLOCATE(perfSourceLocal(eNoN))
 
 !     Loop over all elements of mesh
       DO e=1, lM%nEl
@@ -73,6 +81,16 @@
             xl(:,a) = x(:,Ac)
             al(:,a) = Ag(:,Ac)
             yl(:,a) = Yg(:,Ac)
+            !kmenon_perfusion
+            IF (perfusionFlag) THEN
+              !perfSourceLocal(a) = perfSrc(Ac)
+               ! Explicit
+              !perfSourceLocal(a) = betaSource*(perfSrc(Ac)-Yg(1,Ac)) + 
+     2        !                     betaSink*(-Yg(1,Ac))
+               ! Implicit
+               perfSourceLocal(a) = betaSource*perfSrc(Ac) + 
+     2                              betaSink*0._RKIND
+            ENDIF
          END DO
 
 !        Gauss integration
@@ -87,7 +105,10 @@
             N = lM%N(:,g)
 
             IF (nsd .EQ. 3) THEN
-               CALL HEATS3D(eNoN, w, N, Nx, al, yl, lR, lK)
+            !kmenon_perfusion
+               !CALL HEATS3D(eNoN, w, N, Nx, al, yl, lR, lK)
+               CALL HEATS3D(eNoN, w, N, Nx, al, yl, lR, lK, 
+     2                perfSourceLocal)
 
             ELSE IF (nsd .EQ. 2) THEN
                CALL HEATS2D(eNoN, w, N, Nx, al, yl, lR, lK)
@@ -108,23 +129,34 @@
       END DO ! e: loop
 
       DEALLOCATE(ptr, xl, al, yl, N, Nx, lR, lK)
+      !kmenon_perfusion
+      DEALLOCATE(perfSourceLocal)
 
       RETURN
       END SUBROUTINE CONSTRUCT_HEATS
 !####################################################################
 !     This is for solving the heat equation in a solid
-      PURE SUBROUTINE HEATS3D (eNoN, w, N, Nx, al, yl, lR, lK)
+      !PURE SUBROUTINE HEATS3D (eNoN, w, N, Nx, al, yl, lR, lK)
+      ! kmenon_perfusion
+      PURE SUBROUTINE HEATS3D (eNoN, w, N, Nx, al, yl, lR, lK,
+     2                         perfSrcLoc)
       USE COMMOD
       IMPLICIT NONE
       INTEGER(KIND=IKIND), INTENT(IN) :: eNoN
       REAL(KIND=RKIND), INTENT(IN) :: w, N(eNoN), Nx(nsd,eNoN),
-     2   al(tDof,eNoN), yl(tDof,eNoN)
+     2   al(tDof,eNoN), yl(tDof,eNoN), perfSrcLoc(eNoN)
       REAL(KIND=RKIND), INTENT(INOUT) :: lR(1,eNoN), lK(1,eNoN,eNoN)
 
       INTEGER(KIND=IKIND) i, a, b
       REAL(KIND=RKIND) nu, T1, amd, wl, Td, Tx(nsd), s, rho
 
-      nu  = eq(cEq)%dmn(cDmn)%prop(conductivity)
+      !nu  = eq(cEq)%dmn(cDmn)%prop(conductivity)
+      ! kmenon_perfusion
+      IF (perfusionFlag) THEN
+         nu  = permeability
+      ELSE
+         nu  = eq(cEq)%dmn(cDmn)%prop(conductivity)
+      ENDIF
       s   = eq(cEq)%dmn(cDmn)%prop(source_term)
       rho = eq(cEq)%dmn(cDmn)%prop(solid_density)
 
@@ -137,20 +169,38 @@
       Td = -s
       Tx = 0._RKIND
       DO a=1, eNoN
-         Td = Td + N(a)*al(i,a)
+         ! kmenon_perfusion
+         IF (perfusionFlag) THEN
+            !Td = Td - perfSrcLoc(a) + N(a)*al(i,a)
+         ! Explicit
+           !Td = Td - N(a)*perfSrcLoc(a) + rho*N(a)*al(i,a)
+         ! Implicit
+            Td = Td - N(a)*perfSrcLoc(a) + rho*N(a)*al(i,a)
+            Td = Td + betaSum*N(a)*yl(i,a)
+         ELSE
+            Td = Td + N(a)*al(i,a)
+         ENDIF
 
          Tx(1) = Tx(1) + Nx(1,a)*yl(i,a)
          Tx(2) = Tx(2) + Nx(2,a)*yl(i,a)
          Tx(3) = Tx(3) + Nx(3,a)*yl(i,a)
       END DO
-      Td = Td * rho
+      ! kmenon_perfusion
+      IF (.NOT. perfusionFlag) THEN
+         Td = Td * rho
+      ENDIF
 
       DO a=1,eNoN
          lR(1,a) = lR(1,a) + w*(N(a)*Td
      2      + (Nx(1,a)*Tx(1) + Nx(2,a)*Tx(2) + Nx(3,a)*Tx(3))*nu)
 
          DO b=1,eNoN
-            lK(1,a,b) = lK(1,a,b) + wl*(N(a)*N(b)*amd
+         ! kmenon_perfusion
+         ! Explicit
+           !lK(1,a,b) = lK(1,a,b) + wl*(N(a)*N(b)*amd
+     2     !   + nu*(Nx(1,a)*Nx(1,b) +Nx(2,a)*Nx(2,b) +Nx(3,a)*Nx(3,b)))
+         ! Implicit
+            lK(1,a,b) = lK(1,a,b) + wl*(N(a)*N(b)*amd +betaSum*N(a)*N(b)
      2         + nu*(Nx(1,a)*Nx(1,b) +Nx(2,a)*Nx(2,b) +Nx(3,a)*Nx(3,b)))
          END DO
       END DO
